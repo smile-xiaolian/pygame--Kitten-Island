@@ -21,15 +21,14 @@ PLAYER_TOOL_OFFSET = {
 	'down': Vector2(0,50)}
 #图层顺序
 LAYERS = {
-	'water': 0,
-	'ground': 1,
-	'soil': 2,
-	'soil water': 3,
-	'house bottom': 4,
-	'ground plant': 5,
-	'main': 6,
-	'house top': 7,
-	'fruit': 8,}
+	'ground': 0,
+	'soil': 1,
+	'soil water': 2,
+	'house bottom': 3,
+	'ground plant': 4,
+	'main': 5,
+	'house top': 6,
+	'fruit': 7,}
 #作物生长速度
 GROW_SPEED = {
 	'corn': 1,
@@ -87,7 +86,7 @@ def import_folder_dict(path):
 			surface_dict[image.split('.')[0]] = image_surf
 	return surface_dict
 
-#计时器-----------------------------------------------------------
+#计时器（动作激活时间长短）-----------------------------------------------------------
 class Timer:
 	def __init__(self,duration,func = None):
 		self.duration = duration
@@ -149,27 +148,6 @@ class Interaction(Generic):
 		super().__init__(pos, surf, groups)
 		self.name = name
 
-class Water(Generic):
-	def __init__(self, pos, frames, groups):
-		#animation setup
-		self.frames = frames
-		self.frame_index = 0
-		# sprite setup
-		super().__init__(
-				pos = pos, 
-				surf = self.frames[self.frame_index], 
-				groups = groups, 
-				z = LAYERS['water']) 
-
-	def animate(self,dt):
-		self.frame_index += 5 * dt
-		if self.frame_index >= len(self.frames):
-			self.frame_index = 0
-		self.image = self.frames[int(self.frame_index)]
-
-	def update(self,dt):
-		self.animate(dt)
-
 class WildFlower(Generic):
 	def __init__(self, pos, surf, groups):
 		super().__init__(pos, surf, groups)
@@ -185,11 +163,6 @@ class Particle(Generic):
 		new_surf = mask_surf.to_surface()
 		new_surf.set_colorkey((0,0,0))
 		self.image = new_surf
-
-	def update(self,dt):
-		current_time = pygame.time.get_ticks()
-		if current_time - self.start_time > self.duration:
-			self.kill()
 
 	def update(self,dt):
 		current_time = pygame.time.get_ticks()
@@ -239,7 +212,6 @@ class Player(pygame.sprite.Sprite):
 
 		# 玩家初始背包
 		self.item_inventory = {
-			'wood':   20,
 			'apple':  20,
 			'corn':   20,
 			'tomato': 20
@@ -250,7 +222,7 @@ class Player(pygame.sprite.Sprite):
 		}
 		self.money = 200
 
-		# 交互初始化
+		# 交互初始化（睡觉、土地、商店）
 		self.interaction = interaction
 		self.sleep = False
 		self.soil_layer = soil_layer
@@ -271,7 +243,7 @@ class Player(pygame.sprite.Sprite):
      #获取工具使用目标位置
 	def get_target_pos(self):
 		self.target_pos = self.rect.center + PLAYER_TOOL_OFFSET[self.status.split('_')[0]]
-
+	#种地动作
 	def use_seed(self):
 		if self.seed_inventory[self.selected_seed] > 0:
 			self.soil_layer.plant_seed(self.target_pos, self.selected_seed)
@@ -296,7 +268,6 @@ class Player(pygame.sprite.Sprite):
     #键盘输入
 	def input(self):
 		keys = pygame.key.get_pressed()
-
 		if not self.timers['tool use'].active and not self.sleep:
 			# 移动 获得方向向量（y分量）
 			if keys[pygame.K_UP]:
@@ -316,20 +287,18 @@ class Player(pygame.sprite.Sprite):
 				self.status = 'left'
 			else:
 				self.direction.x = 0
-
 			# 工具使用
 			if keys[pygame.K_SPACE]:
 				self.timers['tool use'].activate()
 				self.direction = pygame.math.Vector2()
 				self.frame_index = 0
-
 			# 切换工具
 			if keys[pygame.K_q] and not self.timers['tool switch'].active:
 				self.timers['tool switch'].activate()
 				self.tool_index += 1
-				self.tool_index = self.tool_index if self.tool_index < len(self.tools) else 0
+				if self.tool_index >= len(self.tools):
+					self.tool_index = 0
 				self.selected_tool = self.tools[self.tool_index]
-
 			# 种子使用
 			if keys[pygame.K_LCTRL]:
 				self.timers['seed use'].activate()
@@ -340,7 +309,8 @@ class Player(pygame.sprite.Sprite):
 			if keys[pygame.K_e] and not self.timers['seed switch'].active:
 				self.timers['seed switch'].activate()
 				self.seed_index += 1
-				self.seed_index = self.seed_index if self.seed_index < len(self.seeds) else 0
+				if self.seed_index >= len(self.seeds):
+					self.seed_index = 0
 				self.selected_seed = self.seeds[self.seed_index]
             # 交互（商店、睡觉）
 			if keys[pygame.K_RETURN]:
@@ -397,7 +367,7 @@ class Player(pygame.sprite.Sprite):
 		self.collision('horizontal')
 		# 垂直方向移动
 		self.pos.y += self.direction.y * self.speed * dt
-		self.hitbox.centery = round(self.pos.y)
+		self.hitbox.centery = round(self.pos.y)#四舍五入
 		self.rect.centery = self.hitbox.centery
 		self.collision('vertical')
 
@@ -634,24 +604,19 @@ class Sky:
 #商店交易-----------------------------------------------------
 class Menu:
 	def __init__(self, player, toggle_menu):
-
-		# general setup
 		self.player = player
 		self.toggle_menu = toggle_menu
 		self.display_surface = pygame.display.get_surface()
-		self.font = pygame.font.Font('../font/LycheeSoda.ttf', 30)
-
-		# options
+		self.font = pygame.font.Font('../font/ChangBanDianSong-12.ttf', 30)
+		# 选择区块样式
 		self.width = 400
 		self.space = 10
 		self.padding = 8
-
-		# entries
+		# 条目设置
 		self.options = list(self.player.item_inventory.keys()) + list(self.player.seed_inventory.keys())
 		self.sell_border = len(self.player.item_inventory) - 1
 		self.setup()
-
-		# movement
+		# 选择器
 		self.index = 0
 		self.timer = Timer(200)
 
@@ -659,85 +624,76 @@ class Menu:
 		text_surf = self.font.render(f'${self.player.money}', False, 'Black')
 		text_rect = text_surf.get_rect(midbottom = (SCREEN_WIDTH / 2,SCREEN_HEIGHT - 20))
 
-		pygame.draw.rect(self.display_surface,'White',text_rect.inflate(10,10),0,4)
+		pygame.draw.rect(self.display_surface,'White',text_rect.inflate(10,10),0,4)#绘制选择框，文字区域扩大10后的区域，0：填充实心，圆角半径4
 		self.display_surface.blit(text_surf,text_rect)
 
 	def setup(self):
-
-		# create the text surfaces
+		# 计算菜单总高度
 		self.text_surfs = []
 		self.total_height = 0
 
 		for item in self.options:
+			if item=='corn':
+				item='玉米'
+			elif item=='tomato':
+				item='西红柿'
+			elif item=='apple':
+				item='苹果'
 			text_surf = self.font.render(item, False, 'Black')
 			self.text_surfs.append(text_surf)
 			self.total_height += text_surf.get_height() + (self.padding * 2)
-
 		self.total_height += (len(self.text_surfs) - 1) * self.space
 		self.menu_top = SCREEN_HEIGHT / 2 - self.total_height / 2
 		self.main_rect = pygame.Rect(SCREEN_WIDTH / 2 - self.width / 2,self.menu_top,self.width,self.total_height)
-
-		# buy / sell text surface
-		self.buy_text = self.font.render('buy',False,'Black')
-		self.sell_text =  self.font.render('sell',False,'Black')
-
+		#购买、出售文字
+		self.buy_text = self.font.render('购买',False,'Blue')
+		self.sell_text =  self.font.render('出售',False,'Green')
+	#键盘控制选择、买卖、退出
 	def input(self):
 		keys = pygame.key.get_pressed()
 		self.timer.update()
-
 		if keys[pygame.K_ESCAPE]:
 			self.toggle_menu()
-
 		if not self.timer.active:
 			if keys[pygame.K_UP]:
 				self.index -= 1
 				self.timer.activate()
-
 			if keys[pygame.K_DOWN]:
 				self.index += 1
 				self.timer.activate()
-
 			if keys[pygame.K_SPACE]:
 				self.timer.activate()
-
-				# get item
+				# 获取当前物品
 				current_item = self.options[self.index]
-
-				# sell
+				# 卖
 				if self.index <= self.sell_border:
 					if self.player.item_inventory[current_item] > 0:
 						self.player.item_inventory[current_item] -= 1
 						self.player.money += SALE_PRICES[current_item]
-
-				# buy
+				# 买
 				else:
 					seed_price = PURCHASE_PRICES[current_item]
 					if self.player.money >= seed_price:
 						self.player.seed_inventory[current_item] += 1
 						self.player.money -= PURCHASE_PRICES[current_item]
-
-		# clamo the values
+		#选择器循环
 		if self.index < 0:
 			self.index = len(self.options) - 1
 		if self.index > len(self.options) - 1:
 			self.index = 0
 
 	def show_entry(self, text_surf, amount, top, selected):
-
-		# background
+		# 背景
 		bg_rect = pygame.Rect(self.main_rect.left,top,self.width,text_surf.get_height() + (self.padding * 2))
 		pygame.draw.rect(self.display_surface, 'White',bg_rect, 0, 4)
-
-		# text
+		# 文本
 		text_rect = text_surf.get_rect(midleft = (self.main_rect.left + 20,bg_rect.centery))
 		self.display_surface.blit(text_surf, text_rect)
-
-		# amount
+		# 数目
 		amount_surf = self.font.render(str(amount), False, 'Black')
 		amount_rect = amount_surf.get_rect(midright = (self.main_rect.right - 20,bg_rect.centery))
 		self.display_surface.blit(amount_surf, amount_rect)
-
-		# selected
+		# 选择框
 		if selected:
 			pygame.draw.rect(self.display_surface,'black',bg_rect,4,4)
 			if self.index <= self.sell_border: # sell
@@ -750,7 +706,6 @@ class Menu:
 	def update(self):
 		self.input()
 		self.display_money()
-
 		for text_index, text_surf in enumerate(self.text_surfs):
 			top = self.main_rect.top + text_index * (text_surf.get_height() + (self.padding * 2) + self.space)
 			amount_list = list(self.player.item_inventory.values()) + list(self.player.seed_inventory.values())
@@ -795,10 +750,6 @@ class Level:
 		# Fence
 		for x, y, surf in tmx_data.get_layer_by_name('Fence').tiles():
 			Generic((x * TILE_SIZE,y * TILE_SIZE), surf, [self.all_sprites, self.collision_sprites])
-		# water
-		water_frames = import_folder('../graphics/water')
-		for x, y, surf in tmx_data.get_layer_by_name('Water').tiles():
-			Water((x * TILE_SIZE,y * TILE_SIZE), water_frames, self.all_sprites)
 		# wildflowers 
 		for obj in tmx_data.get_layer_by_name('Decoration'):
 			WildFlower((obj.x, obj.y), obj.image, [self.all_sprites, self.collision_sprites])
@@ -822,7 +773,7 @@ class Level:
 
 		Generic(
 			pos = (0,0),
-			surf = pygame.image.load('../graphics/world/ground.png').convert_alpha(),
+			surf = pygame.image.load('../graphics/world/ground.png').convert(),
 			groups = self.all_sprites,
 			z = LAYERS['ground'])
 
