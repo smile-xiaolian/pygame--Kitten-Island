@@ -296,8 +296,7 @@ class Player(pygame.sprite.Sprite):
 			if keys[pygame.K_q] and not self.timers['tool switch'].active:
 				self.timers['tool switch'].activate()
 				self.tool_index += 1
-				if self.tool_index >= len(self.tools):
-					self.tool_index = 0
+				self.tool_index = self.tool_index if self.tool_index < len(self.tools) else 0
 				self.selected_tool = self.tools[self.tool_index]
 			# 种子使用
 			if keys[pygame.K_LCTRL]:
@@ -309,8 +308,7 @@ class Player(pygame.sprite.Sprite):
 			if keys[pygame.K_e] and not self.timers['seed switch'].active:
 				self.timers['seed switch'].activate()
 				self.seed_index += 1
-				if self.seed_index >= len(self.seeds):
-					self.seed_index = 0
+				self.seed_index = self.seed_index if self.seed_index < len(self.seeds) else 0
 				self.selected_seed = self.seeds[self.seed_index]
             # 交互（商店、睡觉）
 			if keys[pygame.K_RETURN]:
