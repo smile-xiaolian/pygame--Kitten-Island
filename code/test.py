@@ -11,8 +11,8 @@ TILE_SIZE=64
 # 覆盖层位置
 OVERLAY_POSITIONS = {
 	'tool' : (40, SCREEN_HEIGHT - 15), 
-	'seed': (70, SCREEN_HEIGHT - 5),
-    'inventory': (640, SCREEN_HEIGHT - 15)}
+	'seed': (80, SCREEN_HEIGHT - 15),
+    'achievement_btn':(SCREEN_WIDTH - 40, 40)}
 #工具使用方向的向量
 PLAYER_TOOL_OFFSET = {
 	'left': Vector2(-50,40),
@@ -43,29 +43,36 @@ PURCHASE_PRICES = {
 	'corn': 4,
 	'tomato': 5}
 
-#界面的显示------------------------------------------------------
+#覆盖层(静止部分）的显示------------------------------------------------------
 class Overlay:
-	def __init__(self,player):
-		self.display_surface = pygame.display.get_surface()
-		self.player = player
-		overlay_path = '../graphics/overlay/'
-		self.tools_surf = {tool: pygame.image.load(f'{overlay_path}{tool}.png').convert_alpha() for tool in player.tools}
-		self.seeds_surf = {seed: pygame.image.load(f'{overlay_path}{seed}.png').convert_alpha() for seed in player.seeds}
-		self.inventory_surf = pygame.image.load(f'{overlay_path}inventory.png').convert_alpha()
+    def __init__(self,player, get_day_func):
+        self.display_surface = pygame.display.get_surface()
+        self.player = player
+        self.get_day = get_day_func  # 新增获取天数的方法
+        overlay_path = '../graphics/overlay/'
+        self.tools_surf = {tool: pygame.image.load(f'{overlay_path}{tool}.png').convert_alpha() for tool in player.tools}
+        self.seeds_surf = {seed: pygame.image.load(f'{overlay_path}{seed}.png').convert_alpha() for seed in player.seeds}
+        self.achievement_btn_surf = pygame.image.load(f'{overlay_path}achievement_btn.png').convert_alpha()
+        self.day_font = pygame.font.Font('../font/ChangBanDianSong-12.ttf', 28)  # 新增字体
 
-	def display(self):
-		# 工具
-		tool_surf = self.tools_surf[self.player.selected_tool]
-		tool_rect = tool_surf.get_rect(midbottom = OVERLAY_POSITIONS['tool'])
-		self.display_surface.blit(tool_surf,tool_rect)
-		# 种子
-		seed_surf = self.seeds_surf[self.player.selected_seed]
-		seed_rect = seed_surf.get_rect(midbottom = OVERLAY_POSITIONS['seed'])
-		self.display_surface.blit(seed_surf,seed_rect)
-		# 物品栏
-		inventory_rect = self.inventory_surf.get_rect(midbottom = OVERLAY_POSITIONS['inventory'])
-		self.display_surface.blit(self.inventory_surf, inventory_rect)
-		
+    def display(self):
+        # 显示天数
+        day = self.get_day()
+        day_surf = self.day_font.render(f'第 {day} 天', True, (38,101,189))
+        self.display_surface.blit(day_surf, (20, 20))
+
+        # 工具
+        tool_surf = self.tools_surf[self.player.selected_tool]
+        tool_rect = tool_surf.get_rect(midbottom = OVERLAY_POSITIONS['tool'])
+        self.display_surface.blit(tool_surf,tool_rect)
+        # 种子
+        seed_surf = self.seeds_surf[self.player.selected_seed]
+        seed_rect = seed_surf.get_rect(midbottom = OVERLAY_POSITIONS['seed'])
+        self.display_surface.blit(seed_surf,seed_rect)
+        # 成就按钮
+        achievement_btn_rect = self.achievement_btn_surf.get_rect(center = OVERLAY_POSITIONS['achievement_btn'])
+        self.display_surface.blit(self.achievement_btn_surf, achievement_btn_rect)
+
 #从文件夹读出图像，存入二维列表（字典）-------------------------------------------------------
 #导入文件夹，返回文件夹下的文件图像列表
 def import_folder(path):
@@ -158,7 +165,7 @@ class Particle(Generic):
 		super().__init__(pos, surf, groups, z)
 		self.start_time = pygame.time.get_ticks()
 		self.duration = duration
-		# 变白
+		# white surface 
 		mask_surf = pygame.mask.from_surface(self.image)
 		new_surf = mask_surf.to_surface()
 		new_surf.set_colorkey((0,0,0))
@@ -340,7 +347,7 @@ class Player(pygame.sprite.Sprite):
 				if sprite.hitbox.colliderect(self.hitbox):
 					if direction == 'horizontal':
 						if self.direction.x > 0: # moving right
-							self.hitbox.right = sprite.hitbox.left#停在碰撞盒左侧
+							self.hitbox.right = sprite.hitbox.left
 						if self.direction.x < 0: # moving left
 							self.hitbox.left = sprite.hitbox.right
 						self.rect.centerx = self.hitbox.centerx
@@ -709,6 +716,76 @@ class Menu:
 			amount_list = list(self.player.item_inventory.values()) + list(self.player.seed_inventory.values())
 			amount = amount_list[text_index]
 			self.show_entry(text_surf, amount, top, self.index == text_index)
+
+#成就系统----------------------------------------------------
+class AchievementSystem:
+    def __init__(self):
+        self.display_surface = pygame.display.get_surface()
+        self.font = pygame.font.Font('../font/ChangBanDianSong-12.ttf', 28)
+        self.achievements = []
+        self.harvest_count = 0
+        self.visible = False
+        self.button_rect = pygame.Rect(SCREEN_WIDTH - 120, 20, 100, 40)#右上角按钮
+		# 弹窗
+        self.popup_text = None
+        self.popup_start_time = 0
+        self.popup_duration = 2000  # 弹窗显示2秒
+
+    def add_harvest(self):
+        self.harvest_count += 1
+        # 收获1次成就
+        if self.harvest_count == 1 and "萌芽！" not in self.achievements:
+            self.achievements.append("萌芽！")
+            self.popup_text = "成就达成：萌芽！"
+            self.popup_start_time = pygame.time.get_ticks()
+        # 收获20次成就
+        if self.harvest_count == 20 and "收获小能手！" not in self.achievements:
+            self.achievements.append("收获小能手！")
+            self.popup_text = "成就达成：收获小能手！"
+            self.popup_start_time = pygame.time.get_ticks()
+        # 收获50次成就
+        if self.harvest_count == 50 and "大丰收！" not in self.achievements:
+            self.achievements.append("大丰收！")
+            self.popup_text = "成就达成：大丰收！"
+            self.popup_start_time = pygame.time.get_ticks()
+
+    def draw_button(self):
+        pygame.draw.rect(self.display_surface, (200, 220, 255), self.button_rect, border_radius=8)
+        text = self.font.render("成就", True, (0, 0, 0))
+        text_rect = text.get_rect(center=self.button_rect.center)
+        self.display_surface.blit(text, text_rect)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.button_rect.collidepoint(event.pos):
+                self.visible = not self.visible
+
+    def display(self):
+		# 弹窗显示
+        if self.popup_text:
+            now = pygame.time.get_ticks()
+            if now - self.popup_start_time < self.popup_duration:
+                popup_rect = pygame.Rect(SCREEN_WIDTH//2 - 180, 40, 360, 60)
+                pygame.draw.rect(self.display_surface, (255, 255, 200), popup_rect, border_radius=12)
+                popup_font = pygame.font.Font('../font/ChangBanDianSong-12.ttf', 32)
+                popup_surf = popup_font.render(self.popup_text, True, (255, 128, 0))
+                popup_text_rect = popup_surf.get_rect(center=popup_rect.center)
+                self.display_surface.blit(popup_surf, popup_text_rect)
+            else:
+                self.popup_text = None  # 超时后清除弹窗
+
+        if self.visible:
+            bg_rect = pygame.Rect(SCREEN_WIDTH/2-200, SCREEN_HEIGHT/2-150, 400, 300)
+            pygame.draw.rect(self.display_surface, (255, 255, 255), bg_rect, border_radius=12)
+            title = self.font.render("成就记录", True, (38,101,189))
+            self.display_surface.blit(title, (bg_rect.x+120, bg_rect.y+20))
+            for idx, ach in enumerate(self.achievements):
+                ach_text = self.font.render(ach, True, (0, 128, 0))
+                self.display_surface.blit(ach_text, (bg_rect.x+40, bg_rect.y+80+idx*40))
+            if not self.achievements:
+                no_text = self.font.render("暂无成就", True, (128,128,128))
+                self.display_surface.blit(no_text, (bg_rect.x+120, bg_rect.y+120))
+
 #功能集合----------------------------------------------------
 class Level:
 	#初始化
@@ -720,8 +797,9 @@ class Level:
 		self.interaction_sprites = pygame.sprite.Group()
 
 		self.soil_layer = SoilLayer(self.all_sprites, self.collision_sprites)
+		self.day_count = 1  # 天数变量
 		self.setup()
-		self.overlay = Overlay(self.player)
+		self.overlay = Overlay(self.player, self.get_day)  # 传入获取天数方法
 		self.transition = Transition(self.reset, self.player)
 		# 商店
 		self.menu = Menu(self.player, self.toggle_shop)
@@ -733,10 +811,11 @@ class Level:
 		self.success.set_volume(0.3)
 		self.music = pygame.mixer.Sound('../audio/music.mp3')
 		self.music.play(loops = -1)
+		self.achievement_system = AchievementSystem()  # 新增成就系统
 
     #初步设置处理tmx文件
 	def setup(self):
-		#创建地图
+		#导入
 		tmx_data = load_pygame('../data/map.tmx')
 		# house
 		for layer in ['HouseFloor', 'HouseFurnitureBottom']:
@@ -748,7 +827,7 @@ class Level:
 		# Fence
 		for x, y, surf in tmx_data.get_layer_by_name('Fence').tiles():
 			Generic((x * TILE_SIZE,y * TILE_SIZE), surf, [self.all_sprites, self.collision_sprites])
-		# 树、商人
+		# wildflowers 
 		for obj in tmx_data.get_layer_by_name('Decoration'):
 			WildFlower((obj.x, obj.y), obj.image, [self.all_sprites, self.collision_sprites])
 		# collion tiles
@@ -784,7 +863,7 @@ class Level:
 	def toggle_shop(self):
 		self.shop_active = not self.shop_active
 
-    #作物生长刷新机制？
+    #重置机制
 	def reset(self):
 		# plants
 		self.soil_layer.update_plants()
@@ -796,6 +875,11 @@ class Level:
 			self.soil_layer.water_all()
 		# sky
 		self.sky.start_color = [255,255,255]
+		self.day_count += 1  # 天数增加
+
+	def get_day(self):
+		return self.day_count
+
     #作物收获机制：
 	def plant_collision(self):
 		if self.soil_layer.plant_sprites:
@@ -805,6 +889,7 @@ class Level:
 					plant.kill()
 					Particle(plant.rect.topleft, plant.image, self.all_sprites, z = LAYERS['main'])
 					self.soil_layer.grid[plant.rect.centery // TILE_SIZE][plant.rect.centerx // TILE_SIZE].remove('P')
+					self.achievement_system.add_harvest()  # 收获计数
 
     #游戏运行
 	def run(self,dt):
@@ -820,6 +905,8 @@ class Level:
 		#天空
 		self.overlay.display()
 		self.sky.display(dt)
+		# 成就页面
+		self.achievement_system.display()
 		#睡觉黑夜转换
 		if self.player.sleep:
 			self.transition.play()
@@ -842,21 +929,22 @@ class CameraGroup(pygame.sprite.Group):
 					self.display_surface.blit(sprite.image, offset_rect)
 #游戏主体--------------------------------------------------------
 class Game:
-	def __init__(self):
-		pygame.init()
-		self.screen = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
-		pygame.display.set_caption('小猫岛')
-		self.clock = pygame.time.Clock()
-		self.level = Level()
-	def run(self):
-		while True:
-			for event in pygame.event.get():
-				if event.type == pygame.QUIT:
-					pygame.quit()
-					sys.exit()
-			dt = self.clock.tick() / 1000
-			self.level.run(dt)
-			pygame.display.update()
+    def __init__(self):
+        pygame.init()
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
+        pygame.display.set_caption('小猫岛')
+        self.clock = pygame.time.Clock()
+        self.level = Level()
+    def run(self):
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                self.level.achievement_system.handle_event(event)  # 处理成就按钮点击
+            dt = self.clock.tick() / 1000
+            self.level.run(dt)
+            pygame.display.update()
 #运行-----------------------------------------------------------------
 if __name__ == '__main__':
 	game = Game()
