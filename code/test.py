@@ -43,7 +43,7 @@ PURCHASE_PRICES = {
 	'corn': 4,
 	'tomato': 5}
 
-#覆盖层(静止部分）的显示------------------------------------------------------
+#界面的显示------------------------------------------------------
 class Overlay:
 	def __init__(self,player):
 		self.display_surface = pygame.display.get_surface()
@@ -158,7 +158,7 @@ class Particle(Generic):
 		super().__init__(pos, surf, groups, z)
 		self.start_time = pygame.time.get_ticks()
 		self.duration = duration
-		# white surface 
+		# 变白
 		mask_surf = pygame.mask.from_surface(self.image)
 		new_surf = mask_surf.to_surface()
 		new_surf.set_colorkey((0,0,0))
@@ -340,7 +340,7 @@ class Player(pygame.sprite.Sprite):
 				if sprite.hitbox.colliderect(self.hitbox):
 					if direction == 'horizontal':
 						if self.direction.x > 0: # moving right
-							self.hitbox.right = sprite.hitbox.left
+							self.hitbox.right = sprite.hitbox.left#停在碰撞盒左侧
 						if self.direction.x < 0: # moving left
 							self.hitbox.left = sprite.hitbox.right
 						self.rect.centerx = self.hitbox.centerx
@@ -748,7 +748,7 @@ class Level:
 		# Fence
 		for x, y, surf in tmx_data.get_layer_by_name('Fence').tiles():
 			Generic((x * TILE_SIZE,y * TILE_SIZE), surf, [self.all_sprites, self.collision_sprites])
-		# wildflowers 
+		# 树、商人
 		for obj in tmx_data.get_layer_by_name('Decoration'):
 			WildFlower((obj.x, obj.y), obj.image, [self.all_sprites, self.collision_sprites])
 		# collion tiles
