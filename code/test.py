@@ -715,14 +715,35 @@ class Menu:
         if self.index > len(self.options) - 1:
             self.index = 0
 
-	def update(self):
-		self.input()
-		self.display_money()
-		for text_index, text_surf in enumerate(self.text_surfs):
-			top = self.main_rect.top + text_index * (text_surf.get_height() + (self.padding * 2) + self.space)
-			amount_list = list(self.player.item_inventory.values()) + list(self.player.seed_inventory.values())
-			amount = amount_list[text_index]
-			self.show_entry(text_surf, amount, top, self.index == text_index)
+    def show_entry(self, text_surf, amount, top, selected):
+        # 背景
+        bg_rect = pygame.Rect(self.main_rect.left, top, self.width, text_surf.get_height() + (self.padding * 2))
+        pygame.draw.rect(self.display_surface, 'White', bg_rect, 0, 4)
+        # 文本
+        text_rect = text_surf.get_rect(midleft=(self.main_rect.left + 20, bg_rect.centery))
+        self.display_surface.blit(text_surf, text_rect)
+        # 数目
+        amount_surf = self.font.render(str(amount), False, 'Black')
+        amount_rect = amount_surf.get_rect(midright=(self.main_rect.right - 20, bg_rect.centery))
+        self.display_surface.blit(amount_surf, amount_rect)
+        # 选择框
+        if selected:
+            pygame.draw.rect(self.display_surface, 'black', bg_rect, 4, 4)
+            if self.index <= self.sell_border:  # sell
+                pos_rect = self.sell_text.get_rect(midleft=(self.main_rect.left + 150, bg_rect.centery))
+                self.display_surface.blit(self.sell_text, pos_rect)
+            else:  # buy
+                pos_rect = self.buy_text.get_rect(midleft=(self.main_rect.left + 150, bg_rect.centery))
+                self.display_surface.blit(self.buy_text, pos_rect)
+
+    def update(self):
+        self.input()
+        self.display_money()
+        for text_index, text_surf in enumerate(self.text_surfs):
+            top = self.main_rect.top + text_index * (text_surf.get_height() + (self.padding * 2) + self.space)
+            amount_list = list(self.player.item_inventory.values()) + list(self.player.seed_inventory.values())
+            amount = amount_list[text_index]
+            self.show_entry(text_surf, amount, top, self.index == text_index)
 
 #成就系统----------------------------------------------------
 class AchievementSystem:
@@ -732,8 +753,8 @@ class AchievementSystem:
         self.achievements = []
         self.harvest_count = 0
         self.visible = False
-        self.button_rect = pygame.Rect(SCREEN_WIDTH - 120, 20, 100, 40)#右上角按钮
-		# 弹窗
+        self.button_rect = pygame.Rect(SCREEN_WIDTH - 120, 20, 100, 40)  # 右上角按钮
+    # 弹窗
         self.popup_text = None
         self.popup_start_time = 0
         self.popup_duration = 2000  # 弹窗显示2秒
@@ -768,11 +789,11 @@ class AchievementSystem:
                 self.visible = not self.visible
 
     def display(self):
-		# 弹窗显示
+        # 弹窗显示
         if self.popup_text:
             now = pygame.time.get_ticks()
             if now - self.popup_start_time < self.popup_duration:
-                popup_rect = pygame.Rect(SCREEN_WIDTH//2 - 180, 40, 360, 60)
+                popup_rect = pygame.Rect(SCREEN_WIDTH // 2 - 180, 40, 360, 60)
                 pygame.draw.rect(self.display_surface, (255, 255, 200), popup_rect, border_radius=12)
                 popup_font = pygame.font.Font('../font/ChangBanDianSong-12.ttf', 32)
                 popup_surf = popup_font.render(self.popup_text, True, (255, 128, 0))
@@ -782,16 +803,16 @@ class AchievementSystem:
                 self.popup_text = None  # 超时后清除弹窗
 
         if self.visible:
-            bg_rect = pygame.Rect(SCREEN_WIDTH/2-200, SCREEN_HEIGHT/2-150, 400, 300)
+            bg_rect = pygame.Rect(SCREEN_WIDTH / 2 - 200, SCREEN_HEIGHT / 2 - 150, 400, 300)
             pygame.draw.rect(self.display_surface, (255, 255, 255), bg_rect, border_radius=12)
-            title = self.font.render("成就记录", True, (38,101,189))
-            self.display_surface.blit(title, (bg_rect.x+120, bg_rect.y+20))
+            title = self.font.render("成就记录", True, (38, 101, 189))
+            self.display_surface.blit(title, (bg_rect.x + 120, bg_rect.y + 20))
             for idx, ach in enumerate(self.achievements):
                 ach_text = self.font.render(ach, True, (0, 128, 0))
-                self.display_surface.blit(ach_text, (bg_rect.x+40, bg_rect.y+80+idx*40))
+                self.display_surface.blit(ach_text, (bg_rect.x + 40, bg_rect.y + 80 + idx * 40))
             if not self.achievements:
-                no_text = self.font.render("暂无成就", True, (128,128,128))
-                self.display_surface.blit(no_text, (bg_rect.x+120, bg_rect.y+120))
+                no_text = self.font.render("暂无成就", True, (128, 128, 128))
+                self.display_surface.blit(no_text, (bg_rect.x + 120, bg_rect.y + 120))
 
 #功能集合----------------------------------------------------
 class Level:
@@ -803,57 +824,57 @@ class Level:
         self.collision_sprites = pygame.sprite.Group()
         self.interaction_sprites = pygame.sprite.Group()
 
-		self.soil_layer = SoilLayer(self.all_sprites, self.collision_sprites)
-		self.day_count = 1  # 天数变量
-		self.setup()
-		self.overlay = Overlay(self.player, self.get_day)  # 传入获取天数方法
-		self.transition = Transition(self.reset, self.player)
-		# 商店
-		self.menu = Menu(self.player, self.toggle_shop)
-		self.shop_active = False
-		# 天空
-		self.sky = Sky()
-		# 音乐
-		self.success = pygame.mixer.Sound('../audio/success.wav')
-		self.success.set_volume(0.3)
-		self.music = pygame.mixer.Sound('../audio/music.mp3')
-		self.music.play(loops = -1)
-		self.achievement_system = AchievementSystem()  # 新增成就系统
+        self.soil_layer = SoilLayer(self.all_sprites, self.collision_sprites)
+        self.day_count = 1  # 天数变量
+        self.setup()
+        self.overlay = Overlay(self.player, self.get_day)  # 传入获取天数方法
+        self.transition = Transition(self.reset, self.player)
+        # 商店
+        self.menu = Menu(self.player, self.toggle_shop)
+        self.shop_active = False
+        # 天空
+        self.sky = Sky()
+        # 音乐
+        self.success = pygame.mixer.Sound('../audio/success.wav')
+        self.success.set_volume(0.3)
+        self.music = pygame.mixer.Sound('../audio/music.mp3')
+        self.music.play(loops=-1)
+        self.achievement_system = AchievementSystem()  # 新增成就系统
 
-    #初步设置处理tmx文件
-	def setup(self):
-		#导入
-		tmx_data = load_pygame('../data/map.tmx')
-		# house
-		for layer in ['HouseFloor', 'HouseFurnitureBottom']:
-			for x, y, surf in tmx_data.get_layer_by_name(layer).tiles():
-				Generic((x * TILE_SIZE,y * TILE_SIZE), surf, self.all_sprites, LAYERS['house bottom'])
-		for layer in ['HouseWalls', 'HouseFurnitureTop']:
-			for x, y, surf in tmx_data.get_layer_by_name(layer).tiles():
-				Generic((x * TILE_SIZE,y * TILE_SIZE), surf, self.all_sprites)
-		# Fence
-		for x, y, surf in tmx_data.get_layer_by_name('Fence').tiles():
-			Generic((x * TILE_SIZE,y * TILE_SIZE), surf, [self.all_sprites, self.collision_sprites])
-		# wildflowers 
-		for obj in tmx_data.get_layer_by_name('Decoration'):
-			WildFlower((obj.x, obj.y), obj.image, [self.all_sprites, self.collision_sprites])
-		# collion tiles
-		for x, y, surf in tmx_data.get_layer_by_name('Collision').tiles():
-			Generic((x * TILE_SIZE, y * TILE_SIZE), pygame.Surface((TILE_SIZE, TILE_SIZE)), self.collision_sprites)
-		#tmx中的对象层
-		for obj in tmx_data.get_layer_by_name('Player'):
-			if obj.name == 'Start':
-				self.player = Player(
-					pos = (obj.x,obj.y), 
-					group = self.all_sprites, 
-					collision_sprites = self.collision_sprites,
-					interaction = self.interaction_sprites,
-					soil_layer = self.soil_layer,
-					toggle_shop = self.toggle_shop)
-			if obj.name == 'Bed':
-				Interaction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
-			if obj.name == 'Trader':
-				Interaction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
+    # 初步设置处理tmx文件
+    def setup(self):
+        # 导入
+        tmx_data = load_pygame('../data/map.tmx')
+        # house
+        for layer in ['HouseFloor', 'HouseFurnitureBottom']:
+            for x, y, surf in tmx_data.get_layer_by_name(layer).tiles():
+                Generic((x * TILE_SIZE, y * TILE_SIZE), surf, self.all_sprites, LAYERS['house bottom'])
+        for layer in ['HouseWalls', 'HouseFurnitureTop']:
+            for x, y, surf in tmx_data.get_layer_by_name(layer).tiles():
+                Generic((x * TILE_SIZE, y * TILE_SIZE), surf, self.all_sprites)
+        # Fence
+        for x, y, surf in tmx_data.get_layer_by_name('Fence').tiles():
+            Generic((x * TILE_SIZE, y * TILE_SIZE), surf, [self.all_sprites, self.collision_sprites])
+        # wildflowers
+        for obj in tmx_data.get_layer_by_name('Decoration'):
+            WildFlower((obj.x, obj.y), obj.image, [self.all_sprites, self.collision_sprites])
+        # collion tiles
+        for x, y, surf in tmx_data.get_layer_by_name('Collision').tiles():
+            Generic((x * TILE_SIZE, y * TILE_SIZE), pygame.Surface((TILE_SIZE, TILE_SIZE)), self.collision_sprites)
+        # tmx中的对象层
+        for obj in tmx_data.get_layer_by_name('Player'):
+            if obj.name == 'Start':
+                self.player = Player(
+                    pos=(obj.x, obj.y),
+                    group=self.all_sprites,
+                    collision_sprites=self.collision_sprites,
+                    interaction=self.interaction_sprites,
+                    soil_layer=self.soil_layer,
+                    toggle_shop=self.toggle_shop)
+            if obj.name == 'Bed':
+                Interaction((obj.x, obj.y), (obj.width, obj.height), self.interaction_sprites, obj.name)
+            if obj.name == 'Trader':
+                Interaction((obj.x, obj.y), (obj.width, obj.height), self.interaction_sprites, obj.name)
 
         Generic(
             pos=(0, 0),
@@ -870,53 +891,33 @@ class Level:
     def toggle_shop(self):
         self.shop_active = not self.shop_active
 
-    #重置机制
-	def reset(self):
-		# plants
-		self.soil_layer.update_plants()
-		# soil
-		self.soil_layer.remove_water()
-		self.raining = randint(0,10) > 7
-		self.soil_layer.raining = self.raining
-		if self.raining:
-			self.soil_layer.water_all()
-		# sky
-		self.sky.start_color = [255,255,255]
-		self.day_count += 1  # 天数增加
+    # 重置机制
+    def reset(self):
+        # plants
+        self.soil_layer.update_plants()
+        # soil
+        self.soil_layer.remove_water()
+        self.raining = randint(0, 10) > 7
+        self.soil_layer.raining = self.raining
+        if self.raining:
+            self.soil_layer.water_all()
+        # sky
+        self.sky.start_color = [255, 255, 255]
+        self.day_count += 1  # 天数增加
 
-	def get_day(self):
-		return self.day_count
+    def get_day(self):
+        return self.day_count
 
-    #作物收获机制：
-	def plant_collision(self):
-		if self.soil_layer.plant_sprites:
-			for plant in self.soil_layer.plant_sprites.sprites():
-				if plant.harvestable and plant.rect.colliderect(self.player.hitbox):
-					self.player_add(plant.plant_type)
-					plant.kill()
-					Particle(plant.rect.topleft, plant.image, self.all_sprites, z = LAYERS['main'])
-					self.soil_layer.grid[plant.rect.centery // TILE_SIZE][plant.rect.centerx // TILE_SIZE].remove('P')
-					self.achievement_system.add_harvest()  # 收获计数
-
-    #游戏运行
-	def run(self,dt):
-		#界面绘制
-		self.display_surface.fill('black')
-		self.all_sprites.custom_draw(self.player)
-		#商店和主页面区别更新
-		if self.shop_active:
-			self.menu.update()
-		else:
-			self.all_sprites.update(dt)
-			self.plant_collision()
-		#天空
-		self.overlay.display()
-		self.sky.display(dt)
-		# 成就页面
-		self.achievement_system.display()
-		#睡觉黑夜转换
-		if self.player.sleep:
-			self.transition.play()
+    # 作物收获机制：
+    def plant_collision(self):
+        if self.soil_layer.plant_sprites:
+            for plant in self.soil_layer.plant_sprites.sprites():
+                if plant.harvestable and plant.rect.colliderect(self.player.hitbox):
+                    self.player_add(plant.plant_type)
+                    plant.kill()
+                    Particle(plant.rect.topleft, plant.image, self.all_sprites, z=LAYERS['main'])
+                    self.soil_layer.grid[plant.rect.centery // TILE_SIZE][plant.rect.centerx // TILE_SIZE].remove('P')
+                    self.achievement_system.add_harvest()  # 收获计数
 
     # 游戏运行
     def run(self, dt):
@@ -932,13 +933,15 @@ class Level:
         # 天空
         self.overlay.display()
         self.sky.display(dt)
+        # 成就页面
+        self.achievement_system.display()
         # 睡觉黑夜转换
         if self.player.sleep:
             self.transition.play()
-            #小游戏
+            # 小游戏
             self.mini_game_kill_plant()
 
-    #小游戏
+    # 小游戏
     def mini_game_kill_plant(self):
         alive_plants = [plant for plant in self.soil_layer.plant_sprites.sprites() if plant.alive]
         print(alive_plants)
