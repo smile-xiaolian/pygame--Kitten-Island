@@ -833,8 +833,18 @@ class Level:
         self.music = pygame.mixer.Sound('../audio/music.mp3')
         self.music.play(loops=-1)
         self.achievement_system = AchievementSystem()  # 新增成就系统
-        # 小游戏
-        self.mini_game_triggered = False
+        # 小游戏相关变量
+        self.mini_game_active = False
+        self.mini_game_start_time = 0
+        self.mini_game_score = 0
+        self.mini_game_round = 0
+        self.mini_game_icon_pos = None
+        self.mini_game_icon_surf = None
+        self.mini_game_icon_rect = None
+        self.mini_game_result = None
+        self.mini_game_icon_visible = False
+        self.mini_game_icon_flash_time = 0
+        self.mini_game_selected_plant = None
 
     # 初步设置处理tmx文件
     def setup(self):
@@ -895,10 +905,6 @@ class Level:
         # sky
         self.sky.start_color = [255, 255, 255]
         self.day_count += 1  # 天数增加
-        # 小游戏
-        if not self.mini_game_triggered:
-            self.mini_game_kill_plant()
-        self.mini_game_triggered = False
 
     def get_day(self):
         return self.day_count
@@ -916,6 +922,12 @@ class Level:
 
     # 游戏运行
     def run(self, dt):
+        # 游戏暂停逻辑：小游戏期间只显示小游戏界面
+        if self.mini_game_active:
+            self.display_surface.fill('black')
+            self.mini_game_update()
+            return
+
         # 界面绘制
         self.display_surface.fill('black')
         self.all_sprites.custom_draw(self.player)
@@ -933,30 +945,88 @@ class Level:
         # 睡觉黑夜转换
         if self.player.sleep:
             self.transition.play()
-            # 小游戏
-            if not self.mini_game_triggered:
+            #小游戏
+            if not self.mini_game_active and not self.mini_game_result:
                 self.mini_game_kill_plant()
+            # 小游戏结束后才进入新一天
+            if self.mini_game_result and not self.mini_game_active:
+                self.player.sleep = False
+                self.mini_game_result = None
+                self.reset()
 
-    # 小游戏
+    # 小游戏入口：启动小游戏
     def mini_game_kill_plant(self):
-        if self.mini_game_triggered:
-            return
-
-        self.mini_game_triggered = True
         alive_plants = [plant for plant in self.soil_layer.plant_sprites.sprites() if plant.alive]
-        print(alive_plants)
         if not alive_plants:
             return
+        self.mini_game_active = True
+        self.mini_game_start_time = pygame.time.get_ticks()
+        self.mini_game_score = 0
+        self.mini_game_round = 0
+        self.mini_game_result = None
+        self.mini_game_selected_plant = choice(alive_plants)
+        self.mini_game_icon_visible = False
+        self.mini_game_icon_flash_time = 0
+        self.mini_game_icon_surf = pygame.image.load(f'../graphics/fruit/{self.mini_game_selected_plant.plant_type}/0.png').convert_alpha()
+        self.mini_game_icon_rect = None
+        # 暂停背景音乐
+        self.music.stop()
+    # 小游戏主循环和绘制
+    def mini_game_update(self):
+        now = pygame.time.get_ticks()
+        elapsed = (now - self.mini_game_start_time) / 1000
+        # 游戏结束
+        if elapsed > 30 or self.mini_game_round >= 20:
+            self.mini_game_active = False
+            # 胜利条件
+            if self.mini_game_score >= 10:
+                self.mini_game_result = 'win'
+            else:
+                self.mini_game_result = 'lose'
+            # 处理结果
+            if self.mini_game_result == 'lose':
+                # 杀死植物
+                self.mini_game_selected_plant.alive = False
+                self.mini_game_selected_plant.kill()
+                self.soil_layer.grid[self.mini_game_selected_plant.rect.centery // TILE_SIZE][self.mini_game_selected_plant.rect.centerx // TILE_SIZE].remove('P')
+            # 恢复背景音乐
+            self.music.play(loops=-1)
+            return
 
-        selected_plant = choice(alive_plants)
-        kill_probability = 1
-        print(selected_plant)
-        if random.random() < kill_probability:
-            print("killed")
-            selected_plant.alive = False
-            selected_plant.kill()
-            self.soil_layer.grid[selected_plant.rect.centery // TILE_SIZE][
-                selected_plant.rect.centerx // TILE_SIZE].remove('P')
+        # 绘制小游戏界面
+        mini_rect = pygame.Rect(SCREEN_WIDTH // 2 - 250, SCREEN_HEIGHT // 2 - 150, 500, 300)
+        pygame.draw.rect(self.display_surface, (255, 255, 220), mini_rect, border_radius=16)
+        font = pygame.font.Font('../font/ChangBanDianSong-12.ttf', 32)
+        title = font.render('女巫想杀死你的植物！点击作物救回！', True, 'red')
+        self.display_surface.blit(title, (SCREEN_WIDTH/4 , 20))
+        score_text = font.render(f'分数: {self.mini_game_score}/20', True, (0, 128, 0))
+        self.display_surface.blit(score_text, (mini_rect.x + 180, mini_rect.y + 70))
+        time_left = max(0, 30 - int(elapsed))
+        time_text = font.render(f'剩余时间: {time_left}s', True, (128, 0, 0))
+        self.display_surface.blit(time_text, (mini_rect.x + 160, mini_rect.y + 120))
+        # 闪现逻辑，每次闪现持续0.7秒，间隔0.3秒
+        if not self.mini_game_icon_visible:
+            if self.mini_game_round < 20:
+                # 生成小游戏框内随机位置
+                icon_w, icon_h = self.mini_game_icon_surf.get_size()
+                x = random.randint(mini_rect.left + 40, mini_rect.right - 40 - icon_w)
+                y = random.randint(mini_rect.top + 60, mini_rect.bottom - 40 - icon_h)
+                self.mini_game_icon_rect = self.mini_game_icon_surf.get_rect(topleft=(x, y))
+                self.mini_game_icon_visible = True
+                self.mini_game_icon_flash_time = now
+        else:
+            # 图标显示0.9秒
+            if now - self.mini_game_icon_flash_time > 900:
+                self.mini_game_icon_visible = False
+                self.mini_game_round += 1
+        # 显示图标
+        if self.mini_game_icon_visible and self.mini_game_icon_rect:
+            self.display_surface.blit(self.mini_game_icon_surf, self.mini_game_icon_rect)
+        # 游戏结束提示
+        if not self.mini_game_active and self.mini_game_result:
+            result_text = '胜利！植物安全' if self.mini_game_result == 'win' else '失败，植物被杀死！'
+            result_surf = font.render(result_text, True, (255, 0, 0) if self.mini_game_result == 'lose' else (0, 128, 0))
+            self.display_surface.blit(result_surf, (mini_rect.x + 140, mini_rect.y + 200))
 
 
 # 相机功能：玩家显示在画面中心-----------------------------------------
@@ -992,11 +1062,17 @@ class Game:
                     pygame.quit()
                     sys.exit()
                 self.level.achievement_system.handle_event(event)  # 处理成就按钮点击
+            # 小游戏点击判定
+                if self.level.mini_game_active and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if self.level.mini_game_icon_visible and self.level.mini_game_icon_rect and self.level.mini_game_icon_rect.collidepoint(event.pos):
+                        self.level.mini_game_score += 1
+                        self.level.mini_game_icon_visible = False
+                        self.level.mini_game_round += 1
             dt = self.clock.tick() / 1000
             self.level.run(dt)
             pygame.display.update()
-
 # 运行-----------------------------------------------------------------
 if __name__ == '__main__':
     game = Game()
     game.run()
+
