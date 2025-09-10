@@ -840,6 +840,8 @@ class Level:
         self.music = pygame.mixer.Sound('../audio/music.mp3')
         self.music.play(loops=-1)
         self.achievement_system = AchievementSystem()  # 新增成就系统
+		#小游戏
+        self.mini_game_triggered = False
 
     # 初步设置处理tmx文件
     def setup(self):
@@ -938,23 +940,29 @@ class Level:
         # 睡觉黑夜转换
         if self.player.sleep:
             self.transition.play()
-            # 小游戏
-            self.mini_game_kill_plant()
+            #小游戏
+            if not self.mini_game_triggered:
+                self.mini_game_kill_plant()
 
-    # 小游戏
+    #小游戏
     def mini_game_kill_plant(self):
+        if self.mini_game_triggered:
+            return
+			
+        self.mini_game_triggered = True
         alive_plants = [plant for plant in self.soil_layer.plant_sprites.sprites() if plant.alive]
         print(alive_plants)
         if not alive_plants:
             return
-
+			
         selected_plant = choice(alive_plants)
         kill_probability = 1
         print(selected_plant)
         if random.random() < kill_probability:
+            print("killed")
             selected_plant.alive = False
             selected_plant.kill()
-            self.soil_layer.grid[selected_plant.rect.centery // TILE_SIZE][selected_plant.rect.centerx // TILE_SIZE].remove('P')
+            self.soil_layer.grid[selected_plant.rect.centery // TILE_SIZE][selected_plant.rect.centerx // TILE_SIZE].remove('P'))
 
 
 # 相机功能：玩家显示在画面中心-----------------------------------------
@@ -997,3 +1005,4 @@ class Game:
 if __name__ == '__main__':
     game = Game()
     game.run()
+
