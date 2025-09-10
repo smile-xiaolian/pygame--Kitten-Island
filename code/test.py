@@ -906,6 +906,10 @@ class Level:
         # sky
         self.sky.start_color = [255, 255, 255]
         self.day_count += 1  # 天数增加
+		#小游戏
+        if not self.mini_game_triggered:
+            self.mini_game_kill_plant()
+        self.mini_game_triggered = False
 
     def get_day(self):
         return self.day_count
@@ -1005,4 +1009,5 @@ class Game:
 if __name__ == '__main__':
     game = Game()
     game.run()
+
 
